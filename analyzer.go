@@ -5,8 +5,8 @@ import (
 	"unicode"
 
 	"github.com/PuerkitoBio/goquery"
-	sitter "github.com/smacker/go-tree-sitter"
-	"github.com/smacker/go-tree-sitter/javascript"
+	sitter "github.com/odvcencio/gotreesitter"
+	"github.com/odvcencio/gotreesitter/grammars"
 )
 
 // Analyzer could be considered the core type of jsluice. It wraps
@@ -21,15 +21,14 @@ type Analyzer struct {
 // NewAnalyzer accepts a slice of bytes representing some JavaScript
 // source code and returns a pointer to a new Analyzer
 func NewAnalyzer(source []byte) *Analyzer {
-	parser := sitter.NewParser()
-
-	parser.SetLanguage(javascript.GetLanguage())
+	lang := grammars.JavascriptLanguage()
+	parser := sitter.NewParser(lang)
 
 	if isProbablyHTML(source) {
 		source = extractInlineJS(source)
 	}
 
-	tree := parser.Parse(nil, source)
+	tree, _ := parser.Parse(source)
 
 	// TODO: Align how URLMatcher and SecretMatcher slices
 	// are loaded. At the moment we load URLMatchers now,
@@ -38,7 +37,7 @@ func NewAnalyzer(source []byte) *Analyzer {
 	// and then secret matching was added later.
 	return &Analyzer{
 		urlMatchers: AllURLMatchers(),
-		rootNode:    NewNode(tree.RootNode(), source),
+		rootNode:    NewNode(tree.RootNode(), source, lang),
 	}
 }
 

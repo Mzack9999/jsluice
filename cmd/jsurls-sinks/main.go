@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	sitter "github.com/smacker/go-tree-sitter"
-	"github.com/smacker/go-tree-sitter/javascript"
+	sitter "github.com/odvcencio/gotreesitter"
+	"github.com/odvcencio/gotreesitter/grammars"
 )
 
 func main() {
@@ -23,35 +23,38 @@ func main() {
 		log.Fatal(err)
 	}
 
-	parser := sitter.NewParser()
-	parser.SetLanguage(javascript.GetLanguage())
+	lang := grammars.JavascriptLanguage()
+	parser := sitter.NewParser(lang)
 
-	tree := parser.Parse(nil, source)
+	tree, err2 := parser.Parse(source)
+	if err2 != nil {
+		log.Fatal(err2)
+	}
 	root := tree.RootNode()
 
 	enter := func(n *sitter.Node) {
-		switch n.Type() {
+		switch n.Type(lang) {
 		case "assignment_expression":
-			left := n.ChildByFieldName("left")
-			right := n.ChildByFieldName("right")
+			left := n.ChildByFieldName("left", lang)
+			right := n.ChildByFieldName("right", lang)
 			if left == nil || right == nil {
 				return
 			}
 
-			rightContent := right.Content(source)
+			rightContent := right.Text(source)
 			if !startsWithString(rightContent) {
 				return
 			}
 
 			rightContent = reWhitespace.ReplaceAllString(rightContent, " ")
-			rightStr := dequote(right.Content(source))
+			rightStr := dequote(right.Text(source))
 
 			if couldBePath(rightStr) {
-				fmt.Printf("%s (assignment)\n", left.Content(source))
+				fmt.Printf("%s (assignment)\n", left.Text(source))
 			}
 
 		case "call_expression":
-			callName := n.ChildByFieldName("function").Content(source)
+			callName := n.ChildByFieldName("function", lang).Text(source)
 			// It's common to find things like immediately called anonymous functions
 			// in JS source, and we don't care about those because we could never match
 			// on them
@@ -59,18 +62,17 @@ func main() {
 				return
 			}
 
-			arguments := n.ChildByFieldName("arguments")
+			arguments := n.ChildByFieldName("arguments", lang)
 			if arguments == nil {
 				return
 			}
 
 			// we want to iterate over the arguments and find
 			// any that look like a url
-			c := sitter.NewTreeCursor(arguments)
-			defer c.Close()
+			c := sitter.NewTreeCursor(arguments, tree)
 
 			// no args
-			if !c.GoToFirstChild() {
+			if !c.GotoFirstChild() {
 				return
 			}
 
@@ -85,7 +87,7 @@ func main() {
 				// named args only (i.e. don't count commas etc)
 				if arg.IsNamed() {
 
-					argContent := arg.Content(source)
+					argContent := arg.Text(source)
 					if startsWithString(argContent) && couldBePath(dequote(argContent)) {
 						foundPath = true
 						break
@@ -93,7 +95,7 @@ func main() {
 					position++
 				}
 
-				if !c.GoToNextSibling() {
+				if !c.GotoNextSibling() {
 					break
 				}
 			}
@@ -103,7 +105,7 @@ func main() {
 			}
 		}
 	}
-	queryNodes(root, enter)
+	queryNodes(root, enter, lang, source, tree)
 }
 
 func startsWithString(in string) bool {
@@ -131,23 +133,21 @@ func couldBePath(in string) bool {
 	return false
 }
 
-func queryNodes(n *sitter.Node, enter func(*sitter.Node)) {
+func queryNodes(n *sitter.Node, enter func(*sitter.Node), lang *sitter.Language, source []byte, tree *sitter.Tree) {
 
 	query, err := sitter.NewQuery(
-		[]byte("[(assignment_expression) (call_expression)] @matches"),
-		javascript.GetLanguage(),
+		"[(assignment_expression) (call_expression)] @matches",
+		lang,
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	qc := sitter.NewQueryCursor()
-	defer qc.Close()
 
-	qc.Exec(query, n)
+	cursor := query.Exec(n, lang, source)
 
 	for {
-		match, exists := qc.NextMatch()
-		if !exists || match == nil {
+		match, exists := cursor.NextMatch()
+		if !exists {
 			break
 		}
 
@@ -157,30 +157,29 @@ func queryNodes(n *sitter.Node, enter func(*sitter.Node)) {
 	}
 }
 
-func walk(n *sitter.Node, enter func(*sitter.Node)) {
+func walk(n *sitter.Node, enter func(*sitter.Node), tree *sitter.Tree) {
 
-	c := sitter.NewTreeCursor(n)
-	defer c.Close()
+	c := sitter.NewTreeCursor(n, tree)
 
 	// walkies
 	recurse := true
 	for {
 		// descend into the tree
-		if recurse && c.GoToFirstChild() {
+		if recurse && c.GotoFirstChild() {
 			recurse = true
 			enter(c.CurrentNode())
 			continue
 		}
 
 		// move sideways
-		if c.GoToNextSibling() {
+		if c.GotoNextSibling() {
 			recurse = true
 			enter(c.CurrentNode())
 			continue
 		}
 
 		// climb back up the tree, but make sure we don't descend right back to where we were
-		if c.GoToParent() {
+		if c.GotoParent() {
 			recurse = false
 			continue
 		}

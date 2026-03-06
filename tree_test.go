@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"testing"
 
-	sitter "github.com/smacker/go-tree-sitter"
-	"github.com/smacker/go-tree-sitter/javascript"
+	sitter "github.com/odvcencio/gotreesitter"
+	"github.com/odvcencio/gotreesitter/grammars"
 )
 
 func TestCollapsedString(t *testing.T) {
@@ -18,13 +18,13 @@ func TestCollapsedString(t *testing.T) {
 		{[]byte(`someVar`), "EXPR"},
 	}
 
-	parser := sitter.NewParser()
-	parser.SetLanguage(javascript.GetLanguage())
+	lang := grammars.JavascriptLanguage()
+	parser := sitter.NewParser(lang)
 
 	for i, c := range cases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			tree := parser.Parse(nil, c.JS)
-			root := NewNode(tree.RootNode(), c.JS)
+			tree, _ := parser.Parse(c.JS)
+			root := NewNode(tree.RootNode(), c.JS, lang)
 
 			// Example tree:
 			//   program

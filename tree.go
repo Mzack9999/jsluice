@@ -6,15 +6,18 @@ import (
 	"strings"
 
 	"github.com/ditashi/jsbeautifier-go/jsbeautifier"
-	sitter "github.com/smacker/go-tree-sitter"
-	"github.com/smacker/go-tree-sitter/javascript"
+	sitter "github.com/odvcencio/gotreesitter"
+	"github.com/odvcencio/gotreesitter/grammars"
 )
 
 // ExpressionPlaceholder is the string used to replace any
 // expressions when string concatenations are collapsed. E.g:
-//   "prefix" + someVar + "suffix"
+//
+//	"prefix" + someVar + "suffix"
+//
 // Would become:
-//   prefixEXPRsuffix
+//
+//	prefixEXPRsuffix
 var ExpressionPlaceholder = "EXPR"
 
 // Node is a wrapper around a tree-sitter node. It serves as
@@ -24,17 +27,20 @@ var ExpressionPlaceholder = "EXPR"
 type Node struct {
 	node        *sitter.Node
 	source      []byte
+	lang        *sitter.Language
 	captureName string
 }
 
 // NewNode creates a new Node for the provided tree-sitter
-// node and a byte-slice containing the JavaScript source.
+// node, a byte-slice containing the JavaScript source, and
+// the language used for parsing.
 // The source provided should be the complete source code
 // and not just the source for the node in question.
-func NewNode(n *sitter.Node, source []byte) *Node {
+func NewNode(n *sitter.Node, source []byte, lang *sitter.Language) *Node {
 	return &Node{
 		node:   n,
 		source: source,
+		lang:   lang,
 	}
 }
 
@@ -49,7 +55,7 @@ func (n *Node) Content() string {
 	if n.node == nil {
 		return ""
 	}
-	return n.node.Content(n.source)
+	return n.node.Text(n.source)
 }
 
 // Type returns the tree-sitter type string for a Node.
@@ -59,7 +65,7 @@ func (n *Node) Type() string {
 	if n.node == nil {
 		return ""
 	}
-	return n.node.Type()
+	return n.node.Type(n.lang)
 }
 
 // Fetches a child Node from a named field. For example,
@@ -68,7 +74,7 @@ func (n *Node) ChildByFieldName(name string) *Node {
 	if !n.IsValid() {
 		return nil
 	}
-	return NewNode(n.node.ChildByFieldName(name), n.source)
+	return NewNode(n.node.ChildByFieldName(name, n.lang), n.source, n.lang)
 }
 
 // Child returns the child Node at the provided index
@@ -76,7 +82,7 @@ func (n *Node) Child(index int) *Node {
 	if !n.IsValid() {
 		return nil
 	}
-	return NewNode(n.node.Child(index), n.source)
+	return NewNode(n.node.Child(index), n.source, n.lang)
 }
 
 // NamedChild returns the 'named' child Node at the provided
@@ -89,7 +95,7 @@ func (n *Node) NamedChild(index int) *Node {
 	if !n.IsValid() {
 		return nil
 	}
-	return NewNode(n.node.NamedChild(index), n.source)
+	return NewNode(n.node.NamedChild(index), n.source, n.lang)
 }
 
 // ChildCount returns the number of children a node has
@@ -138,7 +144,7 @@ func (n *Node) NextSibling() *Node {
 	if !n.IsValid() {
 		return nil
 	}
-	return NewNode(n.node.NextSibling(), n.source)
+	return NewNode(n.node.NextSibling(), n.source, n.lang)
 }
 
 // NextNamedSibling returns the next named sibling in the tree
@@ -146,7 +152,14 @@ func (n *Node) NextNamedSibling() *Node {
 	if !n.IsValid() {
 		return nil
 	}
-	return NewNode(n.node.NextNamedSibling(), n.source)
+	sibling := n.node.NextSibling()
+	for sibling != nil {
+		if sibling.IsNamed() {
+			return NewNode(sibling, n.source, n.lang)
+		}
+		sibling = sibling.NextSibling()
+	}
+	return nil
 }
 
 // PrevSibling returns the previous sibling in the tree
@@ -154,7 +167,7 @@ func (n *Node) PrevSibling() *Node {
 	if !n.IsValid() {
 		return nil
 	}
-	return NewNode(n.node.PrevSibling(), n.source)
+	return NewNode(n.node.PrevSibling(), n.source, n.lang)
 }
 
 // PrevNamedSibling returns the previous named sibling in the tree
@@ -162,18 +175,25 @@ func (n *Node) PrevNamedSibling() *Node {
 	if !n.IsValid() {
 		return nil
 	}
-	return NewNode(n.node.PrevNamedSibling(), n.source)
+	sibling := n.node.PrevSibling()
+	for sibling != nil {
+		if sibling.IsNamed() {
+			return NewNode(sibling, n.source, n.lang)
+		}
+		sibling = sibling.PrevSibling()
+	}
+	return nil
 }
 
 // CollapsedString takes a node representing a URL and attempts to make it
 // at least somewhat easily parseable. It's common to build URLs out
 // of variables and function calls so we want to turn something like:
 //
-//  './upload.php?profile='+res.id+'&show='+$('.participate_modal_container').attr('data-val')
+//	'./upload.php?profile='+res.id+'&show='+$('.participate_modal_container').attr('data-val')
 //
 // Into something more like:
 //
-//  ./upload.php?profile=EXPR&show=EXPR
+//	./upload.php?profile=EXPR&show=EXPR
 //
 // The value of ExpressionPlaceholder is used as a placeholder, defaulting to 'EXPR'
 func (n *Node) CollapsedString() string {
@@ -218,15 +238,14 @@ func (n *Node) DecodedString() string {
 // Go type, defaulting to a string containing the JavaScript
 // source for the Node. Return types are:
 //
-//   string => string
-//   number => int, float64
-//   object => map[string]any
-//   array  => []any
-//   false  => false
-//   true   => true
-//   null   => nil
-//   other  => string
-//
+//	string => string
+//	number => int, float64
+//	object => map[string]any
+//	array  => []any
+//	false  => false
+//	true   => true
+//	null   => nil
+//	other  => string
 func (n *Node) AsGoType() any {
 	if n == nil {
 		return nil
@@ -325,7 +344,7 @@ func (n *Node) Parent() *Node {
 	if !n.IsValid() {
 		return nil
 	}
-	return NewNode(n.node.Parent(), n.source)
+	return NewNode(n.node.Parent(), n.source, n.lang)
 }
 
 // IsNamed returns true if the underlying node is named
@@ -339,22 +358,20 @@ func (n *Node) IsNamed() bool {
 // ForEachChild iterates over a node's children in a depth-first
 // manner, calling the supplied function for each node
 func (n *Node) ForEachChild(fn func(*Node)) {
-	it := sitter.NewIterator(n.node, sitter.DFSMode)
-
-	it.ForEach(func(sn *sitter.Node) error {
-		fn(NewNode(sn, n.source))
-		return nil
+	sitter.Walk(n.node, func(sn *sitter.Node, depth int) sitter.WalkAction {
+		fn(NewNode(sn, n.source, n.lang))
+		return sitter.WalkContinue
 	})
 }
 
 // ForEachNamedChild iterates over a node's named children in a
 // depth-first manner, calling the supplied function for each node
 func (n *Node) ForEachNamedChild(fn func(*Node)) {
-	it := sitter.NewNamedIterator(n.node, sitter.DFSMode)
-
-	it.ForEach(func(sn *sitter.Node) error {
-		fn(NewNode(sn, n.source))
-		return nil
+	sitter.Walk(n.node, func(sn *sitter.Node, depth int) sitter.WalkAction {
+		if sn.IsNamed() {
+			fn(NewNode(sn, n.source, n.lang))
+		}
+		return sitter.WalkContinue
 	})
 }
 
@@ -429,32 +446,24 @@ func (n *Node) QueryMulti(query string, fn func(QueryResult)) {
 	if !n.IsValid() {
 		return
 	}
-	q, err := sitter.NewQuery(
-		[]byte(query),
-		javascript.GetLanguage(),
-	)
+	q, err := sitter.NewQuery(query, n.lang)
 	if err != nil {
 		return
 	}
 
-	qc := sitter.NewQueryCursor()
-	defer qc.Close()
-
-	qc.Exec(q, n.node)
+	cursor := q.Exec(n.node, n.lang, n.source)
 
 	for {
-		match, exists := qc.NextMatch()
-		if !exists || match == nil {
+		match, exists := cursor.NextMatch()
+		if !exists {
 			break
 		}
-
-		match = qc.FilterPredicates(match, n.source)
 
 		qr := NewQueryResult()
 
 		for _, capture := range match.Captures {
-			node := NewNode(capture.Node, n.source)
-			node.captureName = q.CaptureNameForId(capture.Index)
+			node := NewNode(capture.Node, n.source, n.lang)
+			node.captureName = capture.Name
 			qr.Add(node)
 		}
 		if len(qr) == 0 {
@@ -502,29 +511,30 @@ func content(n *sitter.Node, source []byte) string {
 	if n == nil {
 		return ""
 	}
-	return n.Content(source)
+	return n.Text(source)
 }
 
 // PrintTree returns a string representation of the syntax tree
 // for the provided JavaScript source
 func PrintTree(source []byte) string {
-	parser := sitter.NewParser()
-	parser.SetLanguage(javascript.GetLanguage())
+	lang := grammars.JavascriptLanguage()
+	parser := sitter.NewParser(lang)
 
-	tree := parser.Parse(nil, source)
-	root := tree.RootNode()
+	tree, _ := parser.Parse(source)
+	if tree == nil {
+		return ""
+	}
 
-	return getTree(root, source)
+	return getTree(tree, lang, source)
 }
 
 // getTree does the actual heavy lifting and recursion for PrintTree
 // TODO: provide a way to print the tree as a JSON object?
-func getTree(n *sitter.Node, source []byte) string {
+func getTree(tree *sitter.Tree, lang *sitter.Language, source []byte) string {
 
 	out := &strings.Builder{}
 
-	c := sitter.NewTreeCursor(n)
-	defer c.Close()
+	c := sitter.NewTreeCursorFromTree(tree)
 
 	// walkies
 	depth := 0
@@ -537,27 +547,27 @@ func getTree(n *sitter.Node, source []byte) string {
 			}
 
 			contentStr := ""
-			if c.CurrentNode().ChildCount() == 0 || c.CurrentNode().Type() == "string" {
+			if c.CurrentNode().ChildCount() == 0 || c.CurrentNode().Type(lang) == "string" {
 				contentStr = fmt.Sprintf(" (%s)", content(c.CurrentNode(), source))
 			}
-			fmt.Fprintf(out, "%s%s%s%s\n", strings.Repeat("  ", depth), fieldName, c.CurrentNode().Type(), contentStr)
+			fmt.Fprintf(out, "%s%s%s%s\n", strings.Repeat("  ", depth), fieldName, c.CurrentNode().Type(lang), contentStr)
 		}
 
 		// descend into the tree
-		if recurse && c.GoToFirstChild() {
+		if recurse && c.GotoFirstChild() {
 			recurse = true
 			depth++
 			continue
 		}
 
 		// move sideways
-		if c.GoToNextSibling() {
+		if c.GotoNextSibling() {
 			recurse = true
 			continue
 		}
 
 		// climb back up the tree, but make sure we don't descend right back to where we were
-		if c.GoToParent() {
+		if c.GotoParent() {
 			depth--
 			recurse = false
 			continue
