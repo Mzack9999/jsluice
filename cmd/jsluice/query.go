@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/BishopFox/jsluice"
+	"github.com/Mzack9999/jsluice"
 )
 
 func runQuery(opts options, filename string, source []byte, output chan string, errs chan error) {

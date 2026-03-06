@@ -1,4 +1,4 @@
-module github.com/BishopFox/jsluice
+module github.com/Mzack9999/jsluice
 
 go 1.24.0
 

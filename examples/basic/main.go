@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/BishopFox/jsluice"
+	"github.com/Mzack9999/jsluice"
 )
 
 func main() {
