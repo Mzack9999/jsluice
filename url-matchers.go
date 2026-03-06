@@ -84,7 +84,7 @@ func (a *Analyzer) GetURLs() []*URL {
 					continue
 				}
 
-				for p, _ := range u.Query() {
+				for p := range u.Query() {
 					// Ignore params that were expressions
 					if p == ExpressionPlaceholder {
 						continue
@@ -111,7 +111,7 @@ func unique[T comparable](items []T) []T {
 	}
 	out := make([]T, len(set))
 	i := 0
-	for item, _ := range set {
+	for item := range set {
 		out[i] = item
 		i++
 	}
@@ -251,7 +251,6 @@ func AllURLMatchers() []URLMatcher {
 				Type:   "window.open",
 				Source: n.Content(),
 			}
-			return nil
 		}},
 
 		// fetch(url, [init])
@@ -277,7 +276,6 @@ func AllURLMatchers() []URLMatcher {
 				Type:        "fetch",
 				Source:      n.Content(),
 			}
-			return nil
 		}},
 
 		// other function calls with a URL-like argument

@@ -1,9 +1,5 @@
 package jsluice
 
-import (
-	"strings"
-)
-
 // A Secret represents any secret or otherwise interesting data
 // found within a JavaScript file. E.g. an AWS access key.
 type Secret struct {
@@ -102,24 +98,24 @@ func AllSecretMatchers() []SecretMatcher {
 			// disabled due to high false positive rate
 			return nil
 
-			o := n.AsObject()
+			// o := n.AsObject()
 
-			hasReactAppKeys := false
-			for _, k := range o.GetKeys() {
-				if strings.HasPrefix(k, "REACT_APP_") {
-					hasReactAppKeys = true
-					break
-				}
-			}
+			// hasReactAppKeys := false
+			// for _, k := range o.GetKeys() {
+			// 	if strings.HasPrefix(k, "REACT_APP_") {
+			// 		hasReactAppKeys = true
+			// 		break
+			// 	}
+			// }
 
-			if !hasReactAppKeys {
-				return nil
-			}
+			// if !hasReactAppKeys {
+			// 	return nil
+			// }
 
-			return &Secret{
-				Kind: "reactApp",
-				Data: o.AsMap(),
-			}
+			// return &Secret{
+			// 	Kind: "reactApp",
+			// 	Data: o.AsMap(),
+			// }
 		}},
 
 		// generic secrets
@@ -129,38 +125,38 @@ func AllSecretMatchers() []SecretMatcher {
 			// but left easy to enable for research purposes
 			return nil
 
-			key := n.ChildByFieldName("key")
-			if key == nil {
-				return nil
-			}
+			// key := n.ChildByFieldName("key")
+			// if key == nil {
+			// 	return nil
+			// }
 
-			keyStr := strings.ToLower(key.RawString())
-			if !strings.Contains(keyStr, "secret") {
-				return nil
-			}
+			// keyStr := strings.ToLower(key.RawString())
+			// if !strings.Contains(keyStr, "secret") {
+			// 	return nil
+			// }
 
-			value := n.ChildByFieldName("value")
-			if value == nil || value.Type() != "string" {
-				return nil
-			}
+			// value := n.ChildByFieldName("value")
+			// if value == nil || value.Type() != "string" {
+			// 	return nil
+			// }
 
-			data := map[string]string{
-				"key": value.RawString(),
-			}
+			// data := map[string]string{
+			// 	"key": value.RawString(),
+			// }
 
-			match := &Secret{
-				Kind: "genericSecret",
-				Data: data,
-			}
+			// match := &Secret{
+			// 	Kind: "genericSecret",
+			// 	Data: data,
+			// }
 
-			parent := n.Parent()
-			if parent == nil || parent.Type() != "object" {
-				return match
-			}
+			// parent := n.Parent()
+			// if parent == nil || parent.Type() != "object" {
+			// 	return match
+			// }
 
-			match.Context = parent.AsObject().AsMap()
+			// match.Context = parent.AsObject().AsMap()
 
-			return match
+			// return match
 		}},
 	}
 }

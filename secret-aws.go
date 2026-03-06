@@ -6,7 +6,7 @@ import (
 )
 
 func awsMatcher() SecretMatcher {
-	awsKey := regexp.MustCompile("^\\w+$")
+	awsKey := regexp.MustCompile(`^\\w+$`)
 
 	return SecretMatcher{"(string) @matches", func(n *Node) *Secret {
 		str := n.RawString()

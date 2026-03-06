@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 
 	"github.com/BishopFox/jsluice"
@@ -38,6 +37,6 @@ func extractSecrets(opts options, filename string, source []byte, output chan st
 		if err != nil {
 			continue
 		}
-		output <- fmt.Sprintf("%s", j)
+		output <- string(j)
 	}
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/url"
 
 	"github.com/BishopFox/jsluice"
@@ -52,6 +51,6 @@ func extractURLs(opts options, filename string, source []byte, output chan strin
 			errs <- err
 			continue
 		}
-		output <- fmt.Sprintf("%s", j)
+		output <- string(j)
 	}
 }

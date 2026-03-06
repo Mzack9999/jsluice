@@ -44,7 +44,10 @@ func (u *UserPattern) ParseRegex() error {
 
 	if len(u.Object) > 0 {
 		for _, m := range u.Object {
-			m.ParseRegex()
+			err := m.ParseRegex()
+			if err != nil {
+				return err
+			}
 		}
 	}
 

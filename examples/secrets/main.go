@@ -19,7 +19,7 @@ func main() {
 	analyzer.AddSecretMatcher(
 		// The first value in the jsluice.SecretMatcher struct is a
 		// tree-sitter query to run on the JavaScript source.
-		jsluice.SecretMatcher{"(pair) @match", func(n *jsluice.Node) *jsluice.Secret {
+		jsluice.SecretMatcher{Query: "(pair) @match", Fn: func(n *jsluice.Node) *jsluice.Secret {
 			key := n.ChildByFieldName("key").DecodedString()
 			value := n.ChildByFieldName("value").DecodedString()
 

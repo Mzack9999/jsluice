@@ -3,8 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 	"regexp"
 	"strings"
 
@@ -14,11 +14,11 @@ import (
 
 func main() {
 
-	reWhitespace := regexp.MustCompile(`\s{2,}`)
+	// reWhitespace := regexp.MustCompile(`\s{2,}`)
 	reJSName := regexp.MustCompile(`^[a-zA-Z0-9_$.-]+$`)
 
 	flag.Parse()
-	source, err := ioutil.ReadFile(flag.Arg(0))
+	source, err := os.ReadFile(flag.Arg(0))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func main() {
 				return
 			}
 
-			rightContent = reWhitespace.ReplaceAllString(rightContent, " ")
+			// rightContent = reWhitespace.ReplaceAllString(rightContent, " ")
 			rightStr := dequote(right.Text(source))
 
 			if couldBePath(rightStr) {
@@ -155,37 +155,6 @@ func queryNodes(n *sitter.Node, enter func(*sitter.Node), lang *sitter.Language,
 			enter(capture.Node)
 		}
 	}
-}
-
-func walk(n *sitter.Node, enter func(*sitter.Node), tree *sitter.Tree) {
-
-	c := sitter.NewTreeCursor(n, tree)
-
-	// walkies
-	recurse := true
-	for {
-		// descend into the tree
-		if recurse && c.GotoFirstChild() {
-			recurse = true
-			enter(c.CurrentNode())
-			continue
-		}
-
-		// move sideways
-		if c.GotoNextSibling() {
-			recurse = true
-			enter(c.CurrentNode())
-			continue
-		}
-
-		// climb back up the tree, but make sure we don't descend right back to where we were
-		if c.GotoParent() {
-			recurse = false
-			continue
-		}
-		break
-	}
-
 }
 
 func dequote(in string) string {

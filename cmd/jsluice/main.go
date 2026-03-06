@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -254,7 +253,9 @@ func main() {
 			fmt.Fprintf(os.Stderr, "failed to create temp file for raw input: %s\n", err)
 			os.Exit(3)
 		}
-		defer os.Remove(tmpfile.Name())
+		defer func() {
+			_ = os.Remove(tmpfile.Name())
+		}()
 
 		_, err = io.Copy(tmpfile, os.Stdin)
 		if err != nil {
@@ -322,17 +323,19 @@ func readFromFileOrURL(path string, cookie string, headers []string, ignoreCert 
 		if err != nil {
 			return nil, err
 		}
-		defer resp.Body.Close()
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 
 		// Check if the request was successful
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("GET request failed with status code %d", resp.StatusCode)
 		}
 
-		return ioutil.ReadAll(resp.Body)
+		return io.ReadAll(resp.Body)
 	}
 
-	return ioutil.ReadFile(path)
+	return os.ReadFile(path)
 }
 
 type warcResponse struct {
@@ -347,7 +350,9 @@ func readWARCFile(filename string) ([]warcResponse, error) {
 	if err != nil {
 		return out, err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	r, err := warc.NewReader(f)
 	if err != nil {
@@ -376,11 +381,11 @@ func readWARCFile(filename string) ([]warcResponse, error) {
 			continue
 		}
 
-		body, err := ioutil.ReadAll(response.Body)
+		body, err := io.ReadAll(response.Body)
 		if err != nil {
 			return out, err
 		}
-		response.Body.Close()
+		_ = response.Body.Close()
 
 		out = append(out, warcResponse{
 			url:    record.Header.Get("WARC-Target-URI"),
